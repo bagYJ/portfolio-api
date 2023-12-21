@@ -1,0 +1,37 @@
+# This is an example Starter pipeline configuration
+# Use a skeleton to build, test and deploy using manual and parallel steps
+# -----
+# You can specify a custom docker image from Docker Hub as your build environment.
+
+image: atlassian/default-image:3
+
+pipeline-runs: &runs-on
+  runs-on:
+    - self.hosted
+    - linux.shell
+production:
+  - step: &real
+      script:
+        - rsync -avzh --exclude 'storage/framework' --exclude 'storage/logs' --exclude 'bootstrap/cache' . root@$PROD_IP_141:$SRC_PATH
+        - ssh root@$PROD_IP_141 "cd $SRC_PATH; chown -R nobody:nobody ./storage/framework; chown -R nobody:nobody ./storage/logs; $COMPOSER_COMMAND; yes|php artisan migrate --path=database/migrations/updated"
+        - rsync -avzh --exclude 'storage/framework' --exclude 'storage/logs' --exclude 'bootstrap/cache' . root@$PROD_IP_142:$SRC_PATH
+        - ssh root@$PROD_IP_142 "cd $SRC_PATH; chown -R nobody:nobody ./storage/framework; chown -R nobody:nobody ./storage/logs; $COMPOSER_COMMAND; supervisorctl reload; supervisorctl update; supervisorctl start laravel-worker:*"
+        - rsync -avzh --exclude 'storage/framework' --exclude 'storage/logs' --exclude 'bootstrap/cache' . root@$PROD_IP_143:$SRC_PATH
+        - ssh root@$PROD_IP_143 "cd $SRC_PATH; chown -R nobody:nobody ./storage/framework; chown -R nobody:nobody ./storage/logs; $COMPOSER_COMMAND;"
+        - ssh -i $PEM $AWS_ID@$AWS_REAL_URI "cd $BASE_PATH$BITBUCKET_REPO_SLUG; $GIT_REAL_COMMAND; git checkout $BITBUCKET_BRANCH; git pull; $COMPOSER_COMMAND;"
+  - step: &dev
+      script:
+        - ssh -i $PEM $AWS_ID@$AWS_DEV_URI "cd $BASE_PATH$BITBUCKET_REPO_SLUG; $GIT_DEV_COMMAND; git checkout $BITBUCKET_BRANCH; git pull; $COMPOSER_COMMAND; ./vendor/bin/openapi -o ./public/swagger.yml --format yaml ./tests;"
+
+pipelines:
+  branches:
+    '{main,hotfix/*}':
+      - step:
+          deployment: production
+          <<: *runs-on
+          <<: *real
+    '{develop,feature/*,bugfix/*}':
+      - step:
+          deployment: test
+          <<: *runs-on
+          <<: *dev

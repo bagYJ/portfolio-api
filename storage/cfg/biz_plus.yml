@@ -1,0 +1,10 @@
+token: https://msggw-auth.supersms.co:9440/auth/v1/token
+send_kakao: https://msggw.supersms.co:9443/v1/send/kko
+client_id: owin_talk
+client_password: kO0DdVYgNZY5RB06fcZs
+sender_id: 15888701
+sender_key: 32cacb7ed615b433f5b6f4e9a697629f8ab8f898
+phone_prefix: '82%s'
+template:
+  message_test_001:
+    content: '%s 알림톡 테스트입니다.'
